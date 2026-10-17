@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Table Management | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html" class="active">Tables</a><a href="order.html">Order Taking</a><a href="kitchen.html">Kitchen</a><a href="billing.html">Billing</a><a href="menu.html">Menu &amp; Promo</a><a href="sales.html">Sales Reports</a></div>
+<h1>Table Management</h1>
+<p class="subtitle">Manage your first-floor and second-floor seating and table status.</p>
+
+<div class="card">
+    <h2 id="formTitle">Add New Table</h2>
+    <div class="form-row">
+        <div class="field">Table Number<input type="text" id="tableName" placeholder="e.g. Tbl 11"></div>
+        <div class="field">Floor<select id="floor"><option value="1">1st Floor</option><option value="2">2nd Floor</option></select></div>
+        <div class="field">Status<select id="status"><option>Available</option><option>Occupied</option><option>Reserved</option><option>Cleaning</option></select></div>
+        <input type="button" class="primary" id="saveBtn" value="Add Table" onclick="saveTable()">
+        <input type="button" id="cancelBtn" value="Cancel Edit" onclick="clearForm()" style="display:none">
+    </div>
+    <p id="output"></p>
+</div>
+
+<div class="card">
+    <div class="form-row">
+        <input type="button" id="btn1" class="primary" value="1st Floor" onclick="showFloor('1')">
+        <input type="button" id="btn2" value="2nd Floor" onclick="showFloor('2')">
+        <span class="legend">
+            <span><i class="dot" style="background:#22c55e"></i>Available</span>
+            <span><i class="dot" style="background:#facc15"></i>Occupied</span>
+            <span><i class="dot" style="background:#ef4444"></i>Reserved</span>
+            <span><i class="dot" style="background:#fb923c"></i>Cleaning</span>
+        </span>
+    </div>
+    <table>
+        <tr><th>Table No</th><th>Floor</th><th>Status</th><th>Actions</th></tr>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    //  (JSON)  functions 
+    var defaultTables = [
+        {id: "t1", name: "Tbl 1", floor: "1", status: "Available"},
+        {id: "t2", name: "Tbl 2", floor: "1", status: "Available"},
+        {id: "t3", name: "Tbl 3", floor: "1", status: "Occupied"},
+        {id: "t4", name: "Tbl 4", floor: "1", status: "Reserved"},
+        {id: "t5", name: "Tbl 5", floor: "2", status: "Occupied"},
+        {id: "t6", name: "Tbl 6", floor: "2", status: "Available"},
+        {id: "t7", name: "Tbl 7", floor: "2", status: "Cleaning"},
+        {id: "t8", name: "Tbl 8", floor: "2", status: "Occupied"},
+        {id: "t9", name: "Tbl 9", floor: "2", status: "Reserved"},
+        {id: "t10", name: "Tbl 10", floor: "2", status: "Cleaning"}
+    ];
+
+    // JSON list from local Storage 
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function saveData(key, list) {
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function makeId(prefix) { return prefix + Date.now(); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    // my code
+    var tables = getData("wingsman_tables", defaultTables);
+    var currentFloor = "1";
+    var editIndex = -1;
+    showMessage("Table records loaded from local Storage.", "ok");
+    displayTables();
+
+    function saveTable() {
+        var name = document.getElementById("tableName").value.trim();
+        var floor = document.getElementById("floor").value;
+        var status = document.getElementById("status").value;
+
+        if (name == "") {
+            showMessage("Please enter a table number.", "error");
+            return;
+        }
+        for (var i = 0; i < tables.length; i++) {
+            if (tables[i].name.toLowerCase() == name.toLowerCase() && i != editIndex) {
+                showMessage("That table number already exists.", "error");
+                return;
+            }
+        }
+        if (editIndex == -1) {
+            tables.push({id: makeId("t"), name: name, floor: floor, status: status});
+            showMessage("Table added successfully.", "ok");
+        } else {
+            tables[editIndex].name = name;
+            tables[editIndex].floor = floor;
+            tables[editIndex].status = status;
+            showMessage("Table updated successfully.", "ok");
+        }
+        saveData("wingsman_tables", tables);
+        currentFloor = floor;
+        clearForm(true);
+        showFloor(floor);
+    }
+
+    function displayTables() {
+        var rows = "";
+        var count = 0;
+        for (var i = 0; i < tables.length; i++) {
+            if (tables[i].floor != currentFloor) { continue; }
+            count++;
+            rows += "<tr>";
+            rows += "<td><strong>" + safe(tables[i].name) + "</strong></td>";
+            rows += "<td>" + (tables[i].floor == "1" ? "1st Floor" : "2nd Floor") + "</td>";
+            rows += "<td><span class='pill " + tables[i].status.toLowerCase() + "'>" + tables[i].status + "</span></td>";
+            rows += "<td>";
+            rows += "<input type='button' class='small primary' value='Assign' onclick='assignTable(" + i + ")'> ";
+            rows += "<input type='button' class='small' value='Release' onclick='releaseTable(" + i + ")'> ";
+            rows += "<input type='button' class='small' value='Edit' onclick='editTable(" + i + ")'> ";
+            rows += "<input type='button' class='small danger' value='Delete' onclick='deleteTable(" + i + ")'>";
+            rows += "</td></tr>";
+        }
+        if (count == 0) {
+            rows = "<tr><td colspan='4'>No tables on this floor yet.</td></tr>";
+        }
+        document.getElementById("tableBody").innerHTML = rows;
+    }
+
+    function showFloor(floor) {
+        currentFloor = floor;
+        document.getElementById("btn1").className = (floor == "1") ? "primary" : "";
+        document.getElementById("btn2").className = (floor == "2") ? "primary" : "";
+        displayTables();
+    }
+
+    function assignTable(i) {
+        if (tables[i].status == "Occupied") {
+            showMessage(tables[i].name + " is already occupied.", "error");
+            return;
+        }
+        if (tables[i].status == "Cleaning") {
+            showMessage(tables[i].name + " is still being cleaned.", "error");
+            return;
+        }
+        tables[i].status = "Occupied";
+        saveData("wingsman_tables", tables);
+        localStorage.setItem("wingsman_currentTable", tables[i].id);
+        showMessage(tables[i].name + " assigned. Opening Order Taking...", "ok");
+        displayTables();
+        setTimeout(function () { window.location = "order.html"; }, 800);
+    }
+
+    function releaseTable(i) {
+        if (tables[i].status == "Available") {
+            showMessage(tables[i].name + " is already available.", "error");
+            return;
+        }
+        tables[i].status = "Available";
+        saveData("wingsman_tables", tables);
+        showMessage(tables[i].name + " is now Available.", "ok");
+        displayTables();
+    }
+
+    function editTable(i) {
+        editIndex = i;
+        document.getElementById("tableName").value = tables[i].name;
+        document.getElementById("floor").value = tables[i].floor;
+        document.getElementById("status").value = tables[i].status;
+        document.getElementById("formTitle").innerHTML = "Edit Table";
+        document.getElementById("saveBtn").value = "Update Table";
+        document.getElementById("cancelBtn").style.display = "inline-block";
+    }
+
+    function clearForm(keepMessage) {
+        editIndex = -1;
+        document.getElementById("tableName").value = "";
+        document.getElementById("floor").value = "1";
+        document.getElementById("status").value = "Available";
+        document.getElementById("formTitle").innerHTML = "Add New Table";
+        document.getElementById("saveBtn").value = "Add Table";
+        document.getElementById("cancelBtn").style.display = "none";
+        if (!keepMessage) { document.getElementById("output").innerHTML = ""; }
+    }
+
+    function deleteTable(i) {
+        if (!confirm("Delete " + tables[i].name + "?")) { return; }
+        tables.splice(i, 1);
+        saveData("wingsman_tables", tables);
+        clearForm(true);
+        showMessage("Table deleted.", "warn");
+        displayTables();
+    }
+</script>
+</div>
+</body>
+</html>

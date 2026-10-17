@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Menu & Promo Settings | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html">Tables</a><a href="order.html">Order Taking</a><a href="kitchen.html">Kitchen</a><a href="billing.html">Billing</a><a href="menu.html" class="active">Menu &amp; Promo</a><a href="sales.html">Sales Reports</a></div>
+<h1>Menu &amp; Promo Settings</h1>
+<p class="subtitle">Manage your menu items and promotional offers.</p>
+
+<div class="card">
+    <h2 id="formTitle">Add New Menu Item</h2>
+    <div class="form-row">
+        <div class="field">Item Name<input type="text" id="itemName" placeholder="e.g. Solo Sets"></div>
+        <div class="field">Price (₱)<input type="number" id="itemPrice" placeholder="89" min="1"></div>
+        <div class="field">Status<select id="itemStatus"><option>Active</option><option>Hidden</option></select></div>
+        <div class="field">Flavors (separate with commas)<input type="text" id="itemFlavors" placeholder="Butter, Honey Garlic" style="width:260px"></div>
+        <input type="button" class="primary" id="saveBtn" value="Add Item" onclick="saveItem()">
+        <input type="button" id="cancelBtn" value="Cancel Edit" onclick="clearForm()" style="display:none">
+    </div>
+    <p id="output"></p>
+</div>
+
+<div class="card">
+    <h2>Manage Menu Items</h2>
+    <input type="search" id="search" placeholder="Search items..." onkeyup="displayMenu()">
+    <table>
+        <tr><th>Item Name</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+        <tbody id="menuBody"></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Promo Management</h2>
+    <table>
+        <tr><th>Promo Name</th><th>Status</th><th>Actions</th></tr>
+        <tbody id="promoBody"></tbody>
+    </table>
+</div>
+
+<script>
+    //  (JSON) functions 
+    var defaultMenu = [
+        {id: "m1", name: "Solo Sets", price: 89, status: "Active", flavors: "Honey Garlic, Garlic, Honey Butter, BBQ"},
+        {id: "m2", name: "ALL-YOU-CAN-EAT", price: 289, status: "Active", flavors: "Butter, Honey Garlic"},
+        {id: "m3", name: "Family Pack", price: 499, status: "Hidden", flavors: ""}
+    ];
+
+    var defaultPromos = [
+        {id: "p1", name: "Lunch Special (FREE Drinks)", status: "ON"},
+        {id: "p2", name: "AYCE WEEKENDS", status: "OFF"}
+    ];
+
+    // JSON list from local Storage 
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function saveData(key, list) {
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function makeId(prefix) { return prefix + Date.now(); }
+
+    function peso(amount) { return "₱" + Number(amount).toLocaleString("en-PH"); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    // my code 
+    var menuItems = getData("wingsman_menu", defaultMenu);
+    var promos = getData("wingsman_promos", defaultPromos);
+    var editIndex = -1;
+    showMessage("Menu and promos loaded from local Storage.", "ok");
+    displayMenu();
+    displayPromos();
+
+    function saveItem() {
+        var name = document.getElementById("itemName").value.trim();
+        var price = document.getElementById("itemPrice").value;
+        var status = document.getElementById("itemStatus").value;
+        var flavors = document.getElementById("itemFlavors").value.trim();
+
+        if (name == "" || price == "") {
+            showMessage("Please fill in the item name and price.", "error");
+            return;
+        }
+        price = Number(price);
+        if (price <= 0) {
+            showMessage("Price must be greater than 0.", "error");
+            return;
+        }
+        for (var i = 0; i < menuItems.length; i++) {
+            if (menuItems[i].name.toLowerCase() == name.toLowerCase() && i != editIndex) {
+                showMessage("That item already exists.", "error");
+                return;
+            }
+        }
+        if (editIndex == -1) {
+            menuItems.push({id: makeId("m"), name: name, price: price, status: status, flavors: flavors});
+            showMessage("Item added successfully.", "ok");
+        } else {
+            menuItems[editIndex].name = name;
+            menuItems[editIndex].price = price;
+            menuItems[editIndex].status = status;
+            menuItems[editIndex].flavors = flavors;
+            showMessage("Item updated successfully.", "ok");
+        }
+        saveData("wingsman_menu", menuItems);
+        clearForm(true);
+        displayMenu();
+    }
+
+    function displayMenu() {
+        var search = document.getElementById("search").value.toLowerCase();
+        var rows = "";
+        for (var i = 0; i < menuItems.length; i++) {
+            if (menuItems[i].name.toLowerCase().indexOf(search) == -1) { continue; }
+            rows += "<tr>";
+            rows += "<td><strong>" + safe(menuItems[i].name) + "</strong><br><small>" + (menuItems[i].flavors == "" ? "No assigned flavors" : safe(menuItems[i].flavors)) + "</small></td>";
+            rows += "<td>" + peso(menuItems[i].price) + "</td>";
+            rows += "<td><span class='pill " + menuItems[i].status.toLowerCase() + "'>" + menuItems[i].status.toUpperCase() + "</span></td>";
+            rows += "<td>";
+            rows += "<input type='button' class='small' value='Edit' onclick='editItem(" + i + ")'> ";
+            rows += "<input type='button' class='small danger' value='Delete' onclick='deleteItem(" + i + ")'>";
+            rows += "</td></tr>";
+        }
+        if (rows == "") {
+            rows = "<tr><td colspan='4'>No menu items found.</td></tr>";
+        }
+        document.getElementById("menuBody").innerHTML = rows;
+    }
+
+    function editItem(i) {
+        editIndex = i;
+        document.getElementById("itemName").value = menuItems[i].name;
+        document.getElementById("itemPrice").value = menuItems[i].price;
+        document.getElementById("itemStatus").value = menuItems[i].status;
+        document.getElementById("itemFlavors").value = menuItems[i].flavors;
+        document.getElementById("formTitle").innerHTML = "Edit Menu Item";
+        document.getElementById("saveBtn").value = "Update Item";
+        document.getElementById("cancelBtn").style.display = "inline-block";
+    }
+
+    function clearForm(keepMessage) {
+        editIndex = -1;
+        document.getElementById("itemName").value = "";
+        document.getElementById("itemPrice").value = "";
+        document.getElementById("itemStatus").value = "Active";
+        document.getElementById("itemFlavors").value = "";
+        document.getElementById("formTitle").innerHTML = "Add New Menu Item";
+        document.getElementById("saveBtn").value = "Add Item";
+        document.getElementById("cancelBtn").style.display = "none";
+        if (!keepMessage) { document.getElementById("output").innerHTML = ""; }
+    }
+
+    function deleteItem(i) {
+        if (!confirm("Delete " + menuItems[i].name + " from the menu?")) { return; }
+        menuItems.splice(i, 1);
+        saveData("wingsman_menu", menuItems);
+        clearForm(true);
+        showMessage("Item deleted.", "warn");
+        displayMenu();
+    }
+
+    function displayPromos() {
+        var rows = "";
+        for (var i = 0; i < promos.length; i++) {
+            rows += "<tr>";
+            rows += "<td><strong>" + safe(promos[i].name) + "</strong></td>";
+            rows += "<td><span class='pill " + promos[i].status.toLowerCase() + "'>" + promos[i].status + "</span></td>";
+            rows += "<td><input type='button' class='small' value='" + (promos[i].status == "ON" ? "Turn Off" : "Turn On") + "' onclick='togglePromo(" + i + ")'></td>";
+            rows += "</tr>";
+        }
+        document.getElementById("promoBody").innerHTML = rows;
+    }
+
+    function togglePromo(i) {
+        promos[i].status = (promos[i].status == "ON") ? "OFF" : "ON";
+        saveData("wingsman_promos", promos);
+        showMessage(promos[i].name + " is now " + promos[i].status + ".", "ok");
+        displayPromos();
+    }
+</script>
+</div>
+</body>
+</html>

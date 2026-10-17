@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Order Taking | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html">Tables</a><a href="order.html" class="active">Order Taking</a><a href="kitchen.html">Kitchen</a><a href="billing.html">Billing</a><a href="menu.html">Menu &amp; Promo</a><a href="sales.html">Sales Reports</a></div>
+<h1>Order Taking</h1>
+<p class="subtitle">Pick items and flavors, then send the order to the kitchen.</p>
+<div class="form-row">
+    <div class="field">Current Table<select id="tableSelect" onchange="changeTable()"></select></div>
+</div>
+
+<div class="two-col">
+    <div class="card">
+        <h2>Menu Items</h2>
+        <table>
+            <tr><th>Item</th><th>Price</th><th>Flavor</th><th>Qty</th><th>Action</th></tr>
+            <tbody id="menuBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Your Order</h2>
+        <table>
+            <tr><th>Item</th><th>Qty</th><th>Total</th><th></th></tr>
+            <tbody id="orderBody"></tbody>
+        </table>
+        <p class="total">Subtotal: <span id="subtotal">₱0</span></p>
+        <div class="field">Note<textarea id="note" rows="2" placeholder="e.g. Extra rice"></textarea></div>
+        <p id="output"></p>
+        <input type="button" value="Clear Order" onclick="clearOrder()">
+        <input type="button" class="primary" value="Send to Kitchen" onclick="sendToKitchen()">
+    </div>
+</div>
+
+<script>
+    // (JSON)functions 
+    var defaultTables = [
+        {id: "t1", name: "Tbl 1", floor: "1", status: "Available"},
+        {id: "t2", name: "Tbl 2", floor: "1", status: "Available"},
+        {id: "t3", name: "Tbl 3", floor: "1", status: "Occupied"},
+        {id: "t4", name: "Tbl 4", floor: "1", status: "Reserved"},
+        {id: "t5", name: "Tbl 5", floor: "2", status: "Occupied"},
+        {id: "t6", name: "Tbl 6", floor: "2", status: "Available"},
+        {id: "t7", name: "Tbl 7", floor: "2", status: "Cleaning"},
+        {id: "t8", name: "Tbl 8", floor: "2", status: "Occupied"},
+        {id: "t9", name: "Tbl 9", floor: "2", status: "Reserved"},
+        {id: "t10", name: "Tbl 10", floor: "2", status: "Cleaning"}
+    ];
+
+    var defaultMenu = [
+        {id: "m1", name: "Solo Sets", price: 89, status: "Active", flavors: "Honey Garlic, Garlic, Honey Butter, BBQ"},
+        {id: "m2", name: "ALL-YOU-CAN-EAT", price: 289, status: "Active", flavors: "Butter, Honey Garlic"},
+        {id: "m3", name: "Family Pack", price: 499, status: "Hidden", flavors: ""}
+    ];
+
+    var defaultOrders = [
+        {id: "o118", no: 118, tableId: "t3", tableName: "Tbl 3", note: "Extra rice", status: "Preparing", total: 667,
+         items: [{name: "Solo Sets - Honey Garlic", price: 89, qty: 1}, {name: "ALL-YOU-CAN-EAT - Butter", price: 289, qty: 2}]}
+    ];
+
+    //  JSON list from local Storage 
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function saveData(key, list) {
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function makeId(prefix) { return prefix + Date.now(); }
+
+    function peso(amount) { return "₱" + Number(amount).toLocaleString("en-PH"); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    // my code 
+    var menuItems = getData("wingsman_menu", defaultMenu);
+    var tables = getData("wingsman_tables", defaultTables);
+    var orders = getData("wingsman_orders", defaultOrders);
+    var currentOrder = getData("wingsman_draft", []);
+
+    fillTableList();
+    displayMenu();
+    displayOrder();
+
+    function fillTableList() {
+        var saved = localStorage.getItem("wingsman_currentTable");
+        var options = "";
+        for (var i = 0; i < tables.length; i++) {
+            var selected = (tables[i].id == saved) ? " selected" : "";
+            options += "<option value='" + tables[i].id + "'" + selected + ">" + safe(tables[i].name) + " (" + tables[i].status + ")</option>";
+        }
+        document.getElementById("tableSelect").innerHTML = options;
+    }
+
+    function changeTable() {
+        localStorage.setItem("wingsman_currentTable", document.getElementById("tableSelect").value);
+    }
+
+    function displayMenu() {
+        var rows = "";
+        for (var i = 0; i < menuItems.length; i++) {
+            if (menuItems[i].status != "Active") { continue; }
+            var flavors = menuItems[i].flavors.split(",");
+            var options = "";
+            for (var j = 0; j < flavors.length; j++) {
+                if (flavors[j].trim() != "") {
+                    options += "<option>" + safe(flavors[j].trim()) + "</option>";
+                }
+            }
+            rows += "<tr>";
+            rows += "<td><strong>" + safe(menuItems[i].name) + "</strong></td>";
+            rows += "<td>" + peso(menuItems[i].price) + "</td>";
+            rows += "<td>" + (options == "" ? "-" : "<select id='flavor" + i + "'>" + options + "</select>") + "</td>";
+            rows += "<td><input type='number' id='qty" + i + "' value='1' min='1' style='width:70px'></td>";
+            rows += "<td><input type='button' class='small primary' value='Add' onclick='addToOrder(" + i + ")'></td>";
+            rows += "</tr>";
+        }
+        if (rows == "") {
+            rows = "<tr><td colspan='5'>No active menu items. Turn one on in Menu & Promo.</td></tr>";
+        }
+        document.getElementById("menuBody").innerHTML = rows;
+    }
+
+    function addToOrder(i) {
+        var flavorBox = document.getElementById("flavor" + i);
+        var flavor = flavorBox ? flavorBox.value : "";
+        var qty = parseInt(document.getElementById("qty" + i).value);
+        if (isNaN(qty) || qty < 1) {
+            showMessage("Enter a quantity of 1 or more.", "error");
+            return;
+        }
+        var itemName = menuItems[i].name;
+        if (flavor != "") { itemName += " - " + flavor; }
+
+        var found = false;
+        for (var j = 0; j < currentOrder.length; j++) {
+            if (currentOrder[j].name == itemName) {
+                currentOrder[j].qty += qty;
+                found = true;
+            }
+        }
+        if (!found) {
+            currentOrder.push({name: itemName, price: menuItems[i].price, qty: qty});
+        }
+        saveData("wingsman_draft", currentOrder);
+        showMessage(itemName + " added to the order.", "ok");
+        displayOrder();
+    }
+
+    function getSubtotal() {
+        var total = 0;
+        for (var i = 0; i < currentOrder.length; i++) {
+            total += currentOrder[i].price * currentOrder[i].qty;
+        }
+        return total;
+    }
+
+    function displayOrder() {
+        var rows = "";
+        for (var i = 0; i < currentOrder.length; i++) {
+            rows += "<tr>";
+            rows += "<td>" + safe(currentOrder[i].name) + "</td>";
+            rows += "<td>" + currentOrder[i].qty + "</td>";
+            rows += "<td>" + peso(currentOrder[i].price * currentOrder[i].qty) + "</td>";
+            rows += "<td><input type='button' class='small danger' value='Remove' onclick='removeItem(" + i + ")'></td>";
+            rows += "</tr>";
+        }
+        if (rows == "") {
+            rows = "<tr><td colspan='4'>No items in the order yet.</td></tr>";
+        }
+        document.getElementById("orderBody").innerHTML = rows;
+        document.getElementById("subtotal").innerHTML = peso(getSubtotal());
+    }
+
+    function removeItem(i) {
+        currentOrder.splice(i, 1);
+        saveData("wingsman_draft", currentOrder);
+        displayOrder();
+    }
+
+    function clearOrder() {
+        if (currentOrder.length == 0) {
+            showMessage("The order is already empty.", "error");
+            return;
+        }
+        if (!confirm("Clear all items?")) { return; }
+        currentOrder = [];
+        saveData("wingsman_draft", currentOrder);
+        document.getElementById("note").value = "";
+        showMessage("Order cleared.", "warn");
+        displayOrder();
+    }
+
+    function sendToKitchen() {
+        if (currentOrder.length == 0) {
+            showMessage("Order is empty!", "error");
+            return;
+        }
+        var tableId = document.getElementById("tableSelect").value;
+        var tableIndex = -1;
+        for (var i = 0; i < tables.length; i++) {
+            if (tables[i].id == tableId) { tableIndex = i; }
+        }
+        if (tableIndex == -1) {
+            showMessage("Please pick a table first.", "error");
+            return;
+        }
+        var number = 117;
+        for (var j = 0; j < orders.length; j++) {
+            if (orders[j].no > number) { number = orders[j].no; }
+        }
+        number++;
+
+        orders.push({id: makeId("o"), no: number, tableId: tableId, tableName: tables[tableIndex].name,
+                     note: document.getElementById("note").value.trim(), status: "Preparing", total: getSubtotal(), items: currentOrder});
+        tables[tableIndex].status = "Occupied";
+        saveData("wingsman_orders", orders);
+        saveData("wingsman_tables", tables);
+
+        currentOrder = [];
+        saveData("wingsman_draft", currentOrder);
+        document.getElementById("note").value = "";
+        showMessage("Order #" + number + " sent to the Kitchen!", "ok");
+        fillTableList();
+        displayOrder();
+    }
+</script>
+</div>
+</body>
+</html>

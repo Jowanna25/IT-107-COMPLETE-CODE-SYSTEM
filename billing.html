@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Billing & Payment | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html">Tables</a><a href="order.html">Order Taking</a><a href="kitchen.html">Kitchen</a><a href="billing.html" class="active">Billing</a><a href="menu.html">Menu &amp; Promo</a><a href="sales.html">Sales Reports</a></div>
+<h1>Billing &amp; Payment</h1>
+<div class="meta">
+    <div><span class="label">Table No</span><b id="billTable">-</b></div>
+    <div><span class="label">Order #</span><b id="billNo">-</b></div>
+    <div><span class="label">Date</span><b id="billDate"></b></div>
+</div>
+<div class="form-row">
+    <div class="field">Order<select id="orderSelect" onchange="showBill()"></select></div>
+</div>
+
+<div class="two-col">
+    <div class="card">
+        <h2>Items Ordered</h2>
+        <table>
+            <tr><th>Item</th><th>Qty</th><th>Total</th></tr>
+            <tbody id="billBody"></tbody>
+        </table>
+        <p id="promoText"></p>
+        <p class="total">TOTAL AMOUNT: <span id="billTotal">₱0</span></p>
+    </div>
+
+    <div class="card">
+        <h2>Payment Details</h2>
+        <div class="field">Amount Received (₱)<input type="number" id="amountReceived" placeholder="0" min="0" onkeyup="computeChange()" onchange="computeChange()"></div>
+        <p><strong>Change: <span id="changeAmount">₱0</span></strong></p>
+        <p id="output"></p>
+        <input type="button" value="Print Receipt" onclick="printReceipt()">
+        <input type="button" class="primary" value="Complete Payment" onclick="completePayment()">
+    </div>
+</div>
+
+<script>
+    
+    function daysAgo(n) {
+        var d = new Date();
+        d.setDate(d.getDate() - n);
+        var month = ("0" + (d.getMonth() + 1)).slice(-2);
+        var day = ("0" + d.getDate()).slice(-2);
+        return d.getFullYear() + "-" + month + "-" + day;
+    }
+
+    function todayDate() { return daysAgo(0); }
+
+    var defaultTables = [
+        {id: "t1", name: "Tbl 1", floor: "1", status: "Available"},
+        {id: "t2", name: "Tbl 2", floor: "1", status: "Available"},
+        {id: "t3", name: "Tbl 3", floor: "1", status: "Occupied"},
+        {id: "t4", name: "Tbl 4", floor: "1", status: "Reserved"},
+        {id: "t5", name: "Tbl 5", floor: "2", status: "Occupied"},
+        {id: "t6", name: "Tbl 6", floor: "2", status: "Available"},
+        {id: "t7", name: "Tbl 7", floor: "2", status: "Cleaning"},
+        {id: "t8", name: "Tbl 8", floor: "2", status: "Occupied"},
+        {id: "t9", name: "Tbl 9", floor: "2", status: "Reserved"},
+        {id: "t10", name: "Tbl 10", floor: "2", status: "Cleaning"}
+    ];
+
+    var defaultPromos = [
+        {id: "p1", name: "Lunch Special (FREE Drinks)", status: "ON"},
+        {id: "p2", name: "AYCE WEEKENDS", status: "OFF"}
+    ];
+
+    var defaultOrders = [
+        {id: "o118", no: 118, tableId: "t3", tableName: "Tbl 3", note: "Extra rice", status: "Preparing", total: 667,
+         items: [{name: "Solo Sets - Honey Garlic", price: 89, qty: 1}, {name: "ALL-YOU-CAN-EAT - Butter", price: 289, qty: 2}]}
+    ];
+
+    var defaultSales = [
+        {id: "s1", date: daysAgo(0), total: 8954,
+         items: [{name: "ALL-YOU-CAN-EAT", qty: 42}, {name: "Solo Garlic", qty: 37}, {name: "Solo Honey Butter", qty: 28}, {name: "Solo BBQ", qty: 20}]},
+        {id: "s2", date: daysAgo(2), total: 22614,
+         items: [{name: "ALL-YOU-CAN-EAT", qty: 110}, {name: "Solo Garlic", qty: 96}, {name: "Solo Honey Butter", qty: 71}, {name: "Solo BBQ", qty: 54}]}
+    ];
+
+    
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function saveData(key, list) {
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function makeId(prefix) { return prefix + Date.now(); }
+
+    function peso(amount) { return "₱" + Number(amount).toLocaleString("en-PH"); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    
+    var orders = getData("wingsman_orders", defaultOrders);
+    var tables = getData("wingsman_tables", defaultTables);
+    var sales = getData("wingsman_sales", defaultSales);
+    var promos = getData("wingsman_promos", defaultPromos);
+    var current = -1;
+
+    document.getElementById("billDate").innerHTML = new Date().toLocaleDateString();
+    fillOrderList();
+    showBill();
+
+    function fillOrderList() {
+        var wanted = new URLSearchParams(window.location.search).get("order");
+        var options = "";
+        for (var i = 0; i < orders.length; i++) {
+            if (orders[i].status == "Paid" || orders[i].status == "Cancelled") { continue; }
+            var selected = (orders[i].id == wanted) ? " selected" : "";
+            options += "<option value='" + i + "'" + selected + ">Order #" + orders[i].no + " - " + safe(orders[i].tableName) + "</option>";
+        }
+        if (options == "") { options = "<option value='-1'>No unpaid orders</option>"; }
+        document.getElementById("orderSelect").innerHTML = options;
+    }
+
+    function showBill() {
+        current = parseInt(document.getElementById("orderSelect").value);
+        if (isNaN(current)) { current = -1; }
+        var rows = "";
+        document.getElementById("amountReceived").value = "";
+        document.getElementById("changeAmount").innerHTML = "₱0";
+
+        if (current == -1) {
+            document.getElementById("billTable").innerHTML = "-";
+            document.getElementById("billNo").innerHTML = "-";
+            document.getElementById("billBody").innerHTML = "<tr><td colspan='3'>No unpaid orders. Send one from Order Taking first.</td></tr>";
+            document.getElementById("billTotal").innerHTML = "₱0";
+            document.getElementById("promoText").innerHTML = "";
+            return;
+        }
+        var order = orders[current];
+        document.getElementById("billTable").innerHTML = safe(order.tableName);
+        document.getElementById("billNo").innerHTML = order.no;
+        for (var i = 0; i < order.items.length; i++) {
+            rows += "<tr><td>" + safe(order.items[i].name) + "</td><td>" + order.items[i].qty + "</td><td>" + peso(order.items[i].price * order.items[i].qty) + "</td></tr>";
+        }
+        document.getElementById("billBody").innerHTML = rows;
+        document.getElementById("billTotal").innerHTML = peso(order.total);
+
+        var active = "";
+        for (var j = 0; j < promos.length; j++) {
+            if (promos[j].status == "ON") { active += (active == "" ? "" : ", ") + safe(promos[j].name); }
+        }
+        document.getElementById("promoText").innerHTML = (active == "") ? "" : "<span class='promo'>Active promo: " + active + "</span>";
+    }
+
+    function computeChange() {
+        if (current == -1) { return; }
+        var received = parseFloat(document.getElementById("amountReceived").value) || 0;
+        var change = received - orders[current].total;
+        if (received > 0 && change < 0) {
+            showMessage("Short by " + peso(-change), "error");
+            document.getElementById("changeAmount").innerHTML = "₱0";
+        } else {
+            document.getElementById("output").innerHTML = "";
+            document.getElementById("changeAmount").innerHTML = peso(change > 0 ? change : 0);
+        }
+    }
+
+    function printReceipt() {
+        if (current == -1) {
+            showMessage("No order to print!", "error");
+            return;
+        }
+        var order = orders[current];
+        var lines = "";
+        for (var i = 0; i < order.items.length; i++) {
+            lines += order.items[i].name + " x " + order.items[i].qty + " - " + peso(order.items[i].price * order.items[i].qty) + "\n";
+        }
+        var received = parseFloat(document.getElementById("amountReceived").value) || 0;
+        alert("--- WINGSMAN PASIG ---\nOrder #" + order.no + " - " + order.tableName + "\nDate: " + new Date().toLocaleDateString() +
+              "\n\nITEMS:\n" + lines + "\nTOTAL: " + peso(order.total) + "\nCash: " + peso(received) +
+              "\nChange: " + peso(received > order.total ? received - order.total : 0) + "\n\nThank you!");
+    }
+
+    function completePayment() {
+        if (current == -1) {
+            showMessage("No payment to complete!", "error");
+            return;
+        }
+        var order = orders[current];
+        var received = parseFloat(document.getElementById("amountReceived").value) || 0;
+        if (received < order.total) {
+            showMessage("Amount received is less than the total.", "error");
+            return;
+        }
+        var soldItems = [];
+        for (var i = 0; i < order.items.length; i++) {
+            soldItems.push({name: order.items[i].name, qty: order.items[i].qty});
+        }
+        sales.push({id: makeId("s"), date: todayDate(), total: order.total, items: soldItems});
+        order.status = "Paid";
+        for (var j = 0; j < tables.length; j++) {
+            if (tables[j].id == order.tableId) { tables[j].status = "Available"; }
+        }
+        saveData("wingsman_sales", sales);
+        saveData("wingsman_orders", orders);
+        saveData("wingsman_tables", tables);
+
+        fillOrderList();
+        showBill();
+        showMessage("Payment Complete! " + order.tableName + " is now Available. Thank you!", "ok");
+    }
+</script>
+</div>
+</body>
+</html>

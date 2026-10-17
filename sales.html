@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Sales Reports | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html">Tables</a><a href="order.html">Order Taking</a><a href="kitchen.html">Kitchen</a><a href="billing.html">Billing</a><a href="menu.html">Menu &amp; Promo</a><a href="sales.html" class="active">Sales Reports</a></div>
+<h1>Sales Reports</h1>
+<div class="form-row">
+    <div class="field">Period<select id="period" onchange="showSales()"><option value="today">Today</option><option value="week">This week</option></select></div>
+    <input type="button" value="Export PDF" onclick="exportPdf()">
+    <input type="button" value="Print" onclick="window.print()">
+</div>
+<p id="output"></p>
+
+<div class="stats">
+    <div class="card"><div class="label">Today's Sales</div><p class="big-number" id="todayTotal">₱0</p></div>
+    <div class="card"><div class="label">This Week's Sales</div><p class="big-number" id="weekTotal">₱0</p></div>
+</div>
+
+<div class="two-col">
+    <div class="card">
+        <h2>Top Sellers</h2>
+        <p class="subtitle" id="topSub"></p>
+        <table>
+            <tr><th>#</th><th>Item</th><th>Orders</th></tr>
+            <tbody id="topBody"></tbody>
+        </table>
+    </div>
+    <div class="card">
+        <h2>Peak Hours</h2>
+        <p class="subtitle">High demand periods</p>
+        <table>
+            <tr><th>Time</th><th>Period</th></tr>
+            <tr><td><strong>11AM - 1PM</strong></td><td>Lunch</td></tr>
+            <tr><td><strong>4PM - 7PM</strong></td><td>After School</td></tr>
+        </table>
+    </div>
+</div>
+
+<script>
+    // (JSON) functions 
+    function daysAgo(n) {
+        var d = new Date();
+        d.setDate(d.getDate() - n);
+        var month = ("0" + (d.getMonth() + 1)).slice(-2);
+        var day = ("0" + d.getDate()).slice(-2);
+        return d.getFullYear() + "-" + month + "-" + day;
+    }
+
+    function todayDate() { return daysAgo(0); }
+
+    var defaultSales = [
+        {id: "s1", date: daysAgo(0), total: 8954,
+         items: [{name: "ALL-YOU-CAN-EAT", qty: 42}, {name: "Solo Garlic", qty: 37}, {name: "Solo Honey Butter", qty: 28}, {name: "Solo BBQ", qty: 20}]},
+        {id: "s2", date: daysAgo(2), total: 22614,
+         items: [{name: "ALL-YOU-CAN-EAT", qty: 110}, {name: "Solo Garlic", qty: 96}, {name: "Solo Honey Butter", qty: 71}, {name: "Solo BBQ", qty: 54}]}
+    ];
+
+    //  JSON list from local Storage 
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function peso(amount) { return "₱" + Number(amount).toLocaleString("en-PH"); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    // my code
+    var sales = getData("wingsman_sales", defaultSales);
+    showSales();
+
+    function showSales() {
+        var today = todayDate();
+        var weekStart = daysAgo(6);
+        var period = document.getElementById("period").value;
+        var todayTotal = 0;
+        var weekTotal = 0;
+        var names = [];
+        var counts = [];
+
+        for (var i = 0; i < sales.length; i++) {
+            if (sales[i].date == today) { todayTotal += sales[i].total; }
+            if (sales[i].date >= weekStart) { weekTotal += sales[i].total; }
+
+            var inPeriod = (period == "today") ? (sales[i].date == today) : (sales[i].date >= weekStart);
+            if (!inPeriod) { continue; }
+            for (var j = 0; j < sales[i].items.length; j++) {
+                var position = names.indexOf(sales[i].items[j].name);
+                if (position == -1) {
+                    names.push(sales[i].items[j].name);
+                    counts.push(sales[i].items[j].qty);
+                } else {
+                    counts[position] += sales[i].items[j].qty;
+                }
+            }
+        }
+        document.getElementById("todayTotal").innerHTML = peso(todayTotal);
+        document.getElementById("weekTotal").innerHTML = peso(weekTotal);
+        document.getElementById("topSub").innerHTML = "Most ordered items " + (period == "today" ? "today" : "this week");
+
+        // sort from highest to lowest
+        for (var a = 0; a < names.length; a++) {
+            for (var b = a + 1; b < names.length; b++) {
+                if (counts[b] > counts[a]) {
+                    var tempCount = counts[a]; counts[a] = counts[b]; counts[b] = tempCount;
+                    var tempName = names[a]; names[a] = names[b]; names[b] = tempName;
+                }
+            }
+        }
+        var rows = "";
+        for (var k = 0; k < names.length && k < 5; k++) {
+            rows += "<tr><td>" + (k + 1) + "</td><td>" + safe(names[k]) + "</td><td>" + counts[k] + " orders</td></tr>";
+        }
+        if (rows == "") {
+            rows = "<tr><td colspan='3'>No sales yet for this period.</td></tr>";
+        }
+        document.getElementById("topBody").innerHTML = rows;
+    }
+
+    function exportPdf() {
+        showMessage("In the print window, choose 'Save as PDF'.", "ok");
+        setTimeout(function () { window.print(); }, 600);
+    }
+</script>
+</div>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arbutus&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="style.css">
+<title>Kitchen Order Display | Wingsman Pasig</title>
+</head>
+<body>
+<div class="container">
+<div class="nav"><a href="tables.html">Tables</a><a href="order.html">Order Taking</a><a href="kitchen.html" class="active">Kitchen</a><a href="billing.html">Billing</a><a href="menu.html">Menu &amp; Promo</a><a href="sales.html">Sales Reports</a></div>
+<h1>Kitchen Order Display</h1>
+<p class="subtitle">Follow each order from Preparing to Ready to Served.</p>
+<p id="output"></p>
+
+<div class="card">
+    <table>
+        <tr><th>Order</th><th>Table</th><th>Items</th><th>Note</th><th>Total</th><th>Status</th><th>Actions</th></tr>
+        <tbody id="orderBody"></tbody>
+    </table>
+</div>
+
+<script>
+   
+    var defaultOrders = [
+        {id: "o118", no: 118, tableId: "t3", tableName: "Tbl 3", note: "Extra rice", status: "Preparing", total: 667,
+         items: [{name: "Solo Sets - Honey Garlic", price: 89, qty: 1}, {name: "ALL-YOU-CAN-EAT - Butter", price: 289, qty: 2}]}
+    ];
+
+    //JSON list from local Storage 
+    function getData(key, sampleList) {
+        var saved = localStorage.getItem(key);
+        if (saved === null) {
+            localStorage.setItem(key, JSON.stringify(sampleList));
+            return sampleList;
+        }
+        return JSON.parse(saved);
+    }
+
+    function saveData(key, list) {
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function peso(amount) { return "₱" + Number(amount).toLocaleString("en-PH"); }
+
+    function safe(text) {
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function showMessage(text, type) {
+        var out = document.getElementById("output");
+        out.innerHTML = text;
+        out.className = type;
+    }
+
+    // my code 
+    var orders = getData("wingsman_orders", defaultOrders);
+    displayOrders();
+
+    function displayOrders() {
+        var rows = "";
+        for (var i = 0; i < orders.length; i++) {
+            var status = orders[i].status;
+            if (status != "Preparing" && status != "Ready" && status != "Served") { continue; }
+
+            var items = "";
+            for (var j = 0; j < orders[i].items.length; j++) {
+                items += safe(orders[i].items[j].name) + " x " + orders[i].items[j].qty + "<br>";
+            }
+            rows += "<tr>";
+            rows += "<td><strong>#" + orders[i].no + "</strong></td>";
+            rows += "<td>" + safe(orders[i].tableName) + "</td>";
+            rows += "<td>" + items + "</td>";
+            rows += "<td>" + safe(orders[i].note) + "</td>";
+            rows += "<td>" + peso(orders[i].total) + "</td>";
+            rows += "<td><span class='pill " + status.toLowerCase() + "'>" + status + "</span></td>";
+            rows += "<td>";
+            if (status == "Preparing") {
+                rows += "<input type='button' class='small primary' value='DONE' onclick='nextStatus(" + i + ")'> ";
+            }
+            if (status == "Ready") {
+                rows += "<input type='button' class='small primary' value='MARK SERVED' onclick='nextStatus(" + i + ")'> ";
+            }
+            if (status == "Served") {
+                rows += "<a class='button small primary' href='billing.html?order=" + orders[i].id + "'>GO TO BILLING</a> ";
+            }
+            if (status != "Served") {
+                rows += "<input type='button' class='small danger' value='CANCEL ORDER' onclick='cancelOrder(" + i + ")'>";
+            }
+            rows += "</td></tr>";
+        }
+        if (rows == "") {
+            rows = "<tr><td colspan='7'>No orders yet. Orders sent from Order Taking appear here.</td></tr>";
+        }
+        document.getElementById("orderBody").innerHTML = rows;
+    }
+
+    function nextStatus(i) {
+        if (orders[i].status == "Preparing") { orders[i].status = "Ready"; }
+        else if (orders[i].status == "Ready") { orders[i].status = "Served"; }
+        saveData("wingsman_orders", orders);
+        showMessage("Order #" + orders[i].no + " is now " + orders[i].status + ".", "ok");
+        displayOrders();
+    }
+
+    function cancelOrder(i) {
+        if (!confirm("Cancel order #" + orders[i].no + "?")) { return; }
+        orders[i].status = "Cancelled";
+        saveData("wingsman_orders", orders);
+        showMessage("Order #" + orders[i].no + " cancelled.", "warn");
+        displayOrders();
+    }
+</script>
+</div>
+</body>
+</html>
